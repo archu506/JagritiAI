@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jagriti
+      POSTGRES_PASSWORD: jagriti
+      POSTGRES_DB: jagriti_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - jagriti_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jagriti"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://jagriti:jagriti@db:5432/jagriti_db
+      SECRET_KEY: ${SECRET_KEY:-change_me_in_production}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      QDRANT_URL: ${QDRANT_URL:-}
+      MAPS_API_KEY: ${MAPS_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "alembic upgrade head && python -m app.db.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  jagriti_pg_data:
